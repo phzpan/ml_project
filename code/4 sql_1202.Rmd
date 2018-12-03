@@ -1,0 +1,121 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+```{r}
+library(RPostgreSQL)
+```
+
+```{r}
+open_csv1 = './KB/371-KIOUS-Patient-Grid-Plain-fill_1116_score_size_su1.csv'
+open_csv2 = './results/ann_table_sum_1116_su1.csv'
+#open_csv11 = './KB/371-KIOUS-Patient-Grid-Plain-fill_1116_score_size_axis.csv'
+#open_csv21 = './results/ann_table_sum_1116_ax.csv'
+
+save_sql_table1 = 'pat_visit_standard_score_1202'
+drop_sql_table1 = 'DROP TABLE IF EXISTS pat_visit_standard_score_1202'
+
+save_sql_table2 = 'notes_score_1202'
+drop_sql_table2 = 'DROP TABLE IF EXISTS notes_score_1202'
+
+save_sql_table3 = 'pat_visit_score_match_1202'
+drop_sql_table3 = 'DROP TABLE IF EXISTS pat_visit_score_match_1202'
+
+save_csv1 = './results/score_validation_sql_1202.csv'
+save_csv2 = './results/score_validation_sep_sql_1202.csv'
+
+#save_sql_table11 = 'pat_visit_standard_score_1127_ax'
+#drop_sql_table11 = 'DROP TABLE IF EXISTS pat_visit_standard_score_1127_ax'
+
+#save_sql_table21 = 'notes_score_1127_ax'
+#drop_sql_table21 = 'DROP TABLE IF EXISTS notes_score_1127_ax'
+
+#save_sql_table31 = 'pat_visit_score_match_1127_ax'
+#drop_sql_table31 = 'DROP TABLE IF EXISTS pat_visit_score_match_1127_ax'
+
+#save_csv11 = './results/score_validation_sql_1127.csv_ax'
+#save_csv21 = './results/score_validation_sep_sql_1127.csv_ax'
+```
+
+```{r}
+getwd()
+```
+
+```{r}
+setwd("C:/Users/hpan/Documents/python")
+```
+
+```{r}
+csv1 = read.csv(open_csv1, header = T, stringsAsFactors = F)
+csv2 = read.csv(open_csv2, header = T, stringsAsFactors = F)
+
+#csv11 = read.csv(open_csv11, header = T, stringsAsFactors = F)
+#csv21 = read.csv(open_csv21, header = T, stringsAsFactors = F)
+```
+
+
+```{r}
+drv <- dbDriver("PostgreSQL")
+```
+
+```{r}
+con1 <- dbConnect(drv, dbname = "postgres",
+                 host = "localhost", port = 5432,
+                 user = "postgres", password = .rs.askForPassword("Please Enter the localhost postgres Password:"))
+```
+
+```{r}
+#dbExecute(con1, "CREATE SCHEMA IF NOT EXISTS u")
+dbExecute(con1, "SET search_path = u;")
+dbExecute(con1, drop_sql_table1)
+dbWriteTable(con1, c('u',save_sql_table1), value = csv1, append = FALSE, row.names = FALSE)
+dbExecute(con1, drop_sql_table2)
+dbWriteTable(con1, c('u',save_sql_table2), value = csv2, append = FALSE, row.names = FALSE)
+
+#dbExecute(con1, "SET search_path = u;")
+#dbExecute(con1, drop_sql_table11)
+#dbWriteTable(con1, c('u',save_sql_table11), value = csv11, append = FALSE, row.names = FALSE)
+#dbExecute(con1, drop_sql_table21)
+#dbWriteTable(con1, c('u',save_sql_table21), value = csv21, append = FALSE, row.names = FALSE)
+```
+
+```{r}
+query1='
+SELECT  notes.pat_visit AS pat_visit, 
+        std1.r_score_su AS m1, notes.sum1 AS n1, notes.note_txt AS txt1, 
+        -- std2.r_score_axis AS m2, notes2.sum1 AS n2, notes2.note_txt AS txt2,
+        std1.fsize AS fsize
+FROM    u.notes_score_1202 AS notes
+JOIN    u.pat_visit_standard_score_1202 AS std1 ON  std1."PAT_VISIT" = notes.pat_visit
+
+--JOIN    u.notes_score_1127_ax AS notes2 ON  notes2.pat_visit = notes.pat_visit
+--JOIN    u.pat_visit_standard_score_1127_ax AS std2 ON  std2.pat_visit = notes.pat_visit
+ORDER BY m1, n1 --, m2, n2;
+;
+'
+```
+
+
+
+```{r}
+dbExecute(con1, "SET search_path = u;")
+query_results <- dbGetQuery(con1, query1)
+write.table(query_results, save_csv1, row.names=FALSE, quote = TRUE)
+write.table(query_results, save_csv2, row.names=FALSE, quote = TRUE, sep = "|")
+
+dbExecute(con1, drop_sql_table3)
+dbWriteTable(con1, c('u',save_sql_table3), value = query_results, append = FALSE, row.names = FALSE)
+
+nrow(query_results)
+#head(query_results)
+```
+
+
+
+```{r}
+lapply(dbListConnections(drv = dbDriver("PostgreSQL")), function(x) {dbDisconnect(con = x)})
+lapply(dbListConnections(drv = dbDriver("PostgreSQL")), function(x) {dbDisconnect(con1 = x)})
+dbUnloadDriver(drv)
+```
